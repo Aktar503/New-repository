@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Advanced Multi-KPI Field Force Tracker</title>
+    <style>
+        /* --- General Styling & Layout --- */
+        :root {
+            --bg-color: #f4f7f9; --card-bg: #ffffff; --text-color: #333;
+            --primary-color: #007bff; --secondary-color: #6c757d; --border-color: #dee2e6;
+            --header-bg: #343a40; --header-text: #ffffff; --weekend-bg: #fff0f1;
+            --holiday-bg: #eef7fa; --good-color: #28a745; --bad-color: #dc3545;
+            --today-bg: #e7f3ff; --today-border: #007bff;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 1rem; background-color: var(--bg-color); color: var(--text-color); line-height: 1.6; }
+        .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+        header { background-color: var(--header-bg); color: var(--header-text); padding: 1rem 1.5rem; border-radius: 8px; text-align: center; }
+        .card { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; font-size: 1.25rem; font-weight: 600; margin: 0 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); }
+        .card-header.is-collapsible { cursor: pointer; }
+        .card-content { transition: all 0.3s ease-in-out; }
+        .is-collapsed .card-content { display: none; }
+        
+        /* --- SVG Icon Styling --- */
+        .toggle-icon svg { width: 1.5em; height: 1.5em; vertical-align: middle; }
+        .toggle-icon .icon-eye-open { display: inline-block; fill: var(--good-color); }
+        .toggle-icon .icon-eye-closed { display: none; fill: var(--bad-color); }
+        .is-collapsed .toggle-icon .icon-eye-open { display: none; }
+        .is-collapsed .toggle-icon .icon-eye-closed { display: inline-block; }
+        
+        .grid-container, .weekend-selector { display: flex; flex-direction: column; gap: 1rem; }
+        
+        /* --- Form & Input Elements --- */
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+        .input-group { display: flex; align-items: center; }
+        .form-group input[type="date"], .form-group input[type="text"], .form-group input[type="number"] { width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; font-size: 1rem; }
+        .input-group-btn { padding: 0.75rem; margin-left: -1px; border: 1px solid var(--border-color); background: #eee; border-radius: 0 4px 4px 0; font-size: 1.2rem; line-height: 1; }
+        .form-group input.error { border-color: var(--bad-color); box-shadow: 0 0 3px var(--bad-color); }
+        .weekend-selector { flex-direction: row; flex-wrap: wrap; }
+
+        /* --- General Summary --- */
+        .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; text-align: center; }
+        .summary-item .value { font-size: 2rem; font-weight: 700; color: var(--primary-color); }
+        .summary-item .label { font-size: 0.9rem; color: var(--secondary-color); }
+
+        /* --- KPI Configuration --- */
+        .kpi-config-row { border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+        .kpi-config-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+        .kpi-name-input { font-size: 1.1rem; font-weight: bold; border: none; border-bottom: 2px solid var(--primary-color); padding: 0.25rem 0; flex-grow: 1; }
+        .remove-kpi-btn { padding: 0.2rem 0.6rem; font-size: 1.2rem; flex-shrink: 0; background-color: var(--bad-color); color: white; border: none; border-radius: 50%; line-height: 1; cursor: pointer; }
+        .target-mode-selector { display: flex; gap: 1rem; font-size: 0.9rem; margin-top: 1rem; }
+        .kpi-config-row[data-mode="monthly"] .blockwise-inputs, .kpi-config-row[data-mode="blockwise"] .monthly-inputs { display: none; }
+        .bw-grid, .bw-inputs-grid { display: flex; flex-direction: column; gap: 1rem; }
+        .bw-blk3-display { font-weight: bold; font-size: 1.1rem; color: var(--primary-color); background-color: #f8f9fa; border-radius: 4px; padding: 0.75rem; text-align: center; border: 1px solid var(--border-color);}
+        #addKpiBtn { width: 100%; margin-top: 1rem; background-color: var(--good-color); color: white; }
+
+        /* --- KPI Summary Section --- */
+        #kpi-summary-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; }
+        .kpi-table { width: 100%; border-collapse: collapse; }
+        .kpi-table td { padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .kpi-table .label { font-weight: 600; }
+        .kpi-table .value { text-align: right; font-weight: bold; }
+        .kpi-table .required-ads { color: var(--bad-color); }
+        .kpi-table .block-value .actual { color: var(--good-color); } .kpi-table .block-value .ach-percent { color: var(--secondary-color); font-style: italic; }
+
+        /* --- Daily Tracking: Mobile-First Card View --- */
+        #daily-tracking-table-container { display: flex; flex-direction: column; gap: 0.75rem; }
+        #daily-table-head { display: none; /* Hide table head on mobile */ }
+        .daily-entry { border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; }
+        .daily-entry-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; font-weight: bold; }
+        .date-info { font-size: 1.1rem; }
+        .status-badge { padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; color: #fff; }
+        .status-Working { background-color: var(--secondary-color); }
+        .status-Weekend { background-color: #c82333; }
+        .status-Holiday { background-color: #17a2b8; }
+        .kpi-entry { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem; }
+        .kpi-entry label { flex-basis: 50%; color: var(--secondary-color); }
+        .kpi-entry input { flex-basis: 50%; text-align: right; }
+        .weekend-row { background-color: var(--weekend-bg); border-left: 4px solid #f5c6cb; }
+        .holiday-row { background-color: var(--holiday-bg); border-left: 4px solid #bee5eb; }
+        .today-row { background-color: var(--today-bg); border: 2px solid var(--today-border); }
+
+        /* --- Daily Tracking: Desktop Table View --- */
+        @media (min-width: 1024px) {
+            #daily-table-head { display: table-header-group; background-color: #e9ecef; position: sticky; top: 0; z-index: 10; }
+            #daily-tracking-table-container { display: block; overflow-x: auto; }
+            #daily-tracking-table { width: 100%; margin-top: 1rem; border-collapse: collapse; font-size: 0.9rem; }
+            #daily-tracking-table th, #daily-tracking-table .daily-entry td { padding: 0.5rem; text-align: center; border: 1px solid var(--border-color); white-space: nowrap; }
+            .daily-entry { display: table-row; background: none !important; border: none !important; padding: 0; }
+            .daily-entry-header, .kpi-entry label { display: none; } /* Hide mobile elements */
+            .daily-entry .data-cell { display: table-cell; vertical-align: middle; }
+            .daily-entry .kpi-entry { display: table-cell; margin-bottom: 0; }
+            .kpi-entry input { width: 100%; }
+            .weekend-row { background-color: var(--weekend-bg) !important; }
+            .holiday-row { background-color: var(--holiday-bg) !important; }
+            .today-row { background-color: var(--today-bg) !important; font-weight: bold; }
+            .today-row td { border-top: 2px solid var(--today-border); border-bottom: 2px solid var(--today-border); }
+        }
+
+        /* --- Tablet & Desktop Layout Adjustments --- */
+        @media (min-width: 768px) {
+            .grid-container { flex-direction: row; flex-wrap: wrap; }
+            .form-group { flex: 1; min-width: 250px; }
+            .summary-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+            .bw-grid { flex-direction: row; }
+            .bw-inputs-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: flex-end; }
+        }
+        
+        /* --- Buttons, Actions, Modal --- */
+        .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1.5rem; }
+        .btn { padding: 0.75rem 1rem; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: 600; flex-grow: 1; }
+        .btn-primary { background-color: var(--primary-color); color: #fff; }
+        .btn-secondary { background-color: var(--secondary-color); color: #fff; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+        .modal-content { background-color: #fff; margin: auto; padding: 20px; border-radius: 8px; width: 90%; max-width: 380px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
+        .date-cell { padding: 5px; border-radius: 50%; cursor: pointer; }
+        .date-cell:hover { background-color: #e9ecef; }
+        .date-cell.selected { background-color: var(--primary-color); color: #fff; }
+        .date-cell.range-start { background-color: var(--good-color); color: #fff; }
+        
+        @media print { .no-print, .toggle-icon, .actions { display: none !important; } .card-content { display: block !important; } .card { box-shadow: none; border: 1px solid #ccc; } .container { display: block; } #daily-tracking-table input { border: none; } #daily-tracking-table-container { display: block !important; overflow: visible !important; } #daily-table-head { display: table-header-group !important; } .daily-entry { display: table-row !important; } .daily-entry .data-cell { display: table-cell !important; } .daily-entry .kpi-entry { display: table-cell !important; } .daily-entry-header, .kpi-entry label { display: none !important; } .weekend-row, .holiday-row { background-color: #eee !important; -webkit-print-color-adjust: exact; color-adjust: exact; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header><h1>Advanced Multi-KPI Field Force Tracker</h1></header>
+
+        <!-- General Configuration -->
+        <div class="card no-print">
+            <h2 class="card-header is-collapsible"><span>1. General Configuration</span><span class="toggle-icon"><svg class="icon-eye-open" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg><svg class="icon-eye-closed" viewBox="0 0 16 16"><path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a7.028 7.028 0 0 0-2.79.588l.77.771A5.94 5.94 0 0 1 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.134 13.134 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755-.165.165-.337.328-.517.486l.708.709z"/><path d="M11.297 9.176a3.5 3.5 0 0 0-4.474-4.474l.823.823a2.5 2.5 0 0 1 2.829 2.829l.822.822zm-2.943 1.288l.822.822.084.083a3.5 3.5 0 0 1-4.474-4.474l.823.823a2.5 2.5 0 0 0 2.829 2.829l.822.822.084.083z"/><path d="M3.35 5.47c-.18.16-.353.322-.518.487A13.134 13.134 0 0 0 1.172 8l.195.288c.335.48.83 1.12 1.465 1.755C4.121 11.332 5.881 12.5 8 12.5c.716 0 1.39-.133 2.02-.36l.77.772A7.029 7.029 0 0 1 8 13.5C3 13.5 0 8 0 8s.939-1.721 2.641-3.238l.708.709zm10.296 6.884-12-12 .708-.708 12 12-.708.708z"/></svg></span></h2>
+            <div class="card-content">
+                <div class="grid-container"><div class="form-group"><label for="startDate">Start Date</label><input type="date" id="startDate" class="config-input"></div><div class="form-group"><label for="endDate">End Date</label><input type="date" id="endDate" class="config-input"></div><div class="form-group"><label for="holidays">Holidays</label><div class="input-group"><input type="text" id="holidays" class="config-input" placeholder="Select..."><button id="openHolidayPickerBtn" class="input-group-btn" title="Select Holidays">📅</button></div></div><div class="form-group"><label>Weekend Days</label><div class="weekend-selector"><label><input type="checkbox" class="config-input weekend-day" value="0"> Sun</label><label><input type="checkbox" class="config-input weekend-day" value="1"> Mon</label><label><input type="checkbox" class="config-input weekend-day" value="2"> Tue</label><label><input type="checkbox" class="config-input weekend-day" value="3"> Wed</label><label><input type="checkbox" class="config-input weekend-day" value="4"> Thu</label><label><input type="checkbox" class="config-input weekend-day" value="5" checked> Fri</label><label><input type="checkbox" class="config-input weekend-day" value="6" checked> Sat</label></div></div></div>
+            </div>
+        </div>
+
+        <!-- KPI Configuration -->
+        <div class="card no-print">
+            <h2 class="card-header is-collapsible"><span>2. KPI & Target Configuration</span><span class="toggle-icon"><svg class="icon-eye-open" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg><svg class="icon-eye-closed" viewBox="0 0 16 16"><path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a7.028 7.028 0 0 0-2.79.588l.77.771A5.94 5.94 0 0 1 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.134 13.134 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755-.165.165-.337.328-.517.486l.708.709z"/><path d="M11.297 9.176a3.5 3.5 0 0 0-4.474-4.474l.823.823a2.5 2.5 0 0 1 2.829 2.829l.822.822zm-2.943 1.288.822.822.084.083a3.5 3.5 0 0 1-4.474-4.474l.823.823a2.5 2.5 0 0 0 2.829 2.829l.822.822.084.083z"/><path d="M3.35 5.47c-.18.16-.353.322-.518.487A13.134 13.134 0 0 0 1.172 8l.195.288c.335.48.83 1.12 1.465 1.755C4.121 11.332 5.881 12.5 8 12.5c.716 0 1.39-.133 2.02-.36l.77.772A7.029 7.029 0 0 1 8 13.5C3 13.5 0 8 0 8s.939-1.721 2.641-3.238l.708.709zm10.296 6.884-12-12 .708-.708 12 12-.708.708z"/></svg></span></h2>
+            <div class="card-content"><div id="kpi-config-container"></div><button id="addKpiBtn" class="btn no-print">+ Add Another KPI</button></div>
+        </div>
+        
+        <!-- Period Summary -->
+        <div class="card"><h2 class="card-header">3. Period Summary</h2><div class="summary-grid"><div class="summary-item"><div class="value" id="totalWorkingDays">0</div><div class="label">Working Days</div></div><div class="summary-item"><div class="value" id="presentWorkingDays">0</div><div class="label">Present Days</div></div><div class="summary-item"><div class="value" id="remainingWorkingDays">0</div><div class="label">Remaining Days</div></div><div class="summary-item"><div class="value" id="totalWeekends">0</div><div class="label">Weekends</div></div><div class="summary-item"><div class="value" id="totalHolidays">0</div><div class="label">Holidays</div></div></div></div>
+
+        <!-- KPI Performance Dashboard -->
+        <div class="card">
+             <h2 class="card-header is-collapsible"><span>4. KPI Performance Dashboard</span><span class="toggle-icon"><svg class="icon-eye-open" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg><svg class="icon-eye-closed" viewBox="0 0 16 16"><path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a7.028 7.028 0 0 0-2.79.588l.77.771A5.94 5.94 0 0 1 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.134 13.134 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755-.165.165-.337.328-.517.486l.708.709z"/><path d="M11.297 9.176a3.5 3.5 0 0 0-4.474-4.474l.823.823a2.5 2.5 0 0 1 2.829 2.829l.822.822zm-2.943 1.288.822.822.084.083a3.5 3.5 0 0 1-4.474-4.474l.823.823a2.5 2.5 0 0 0 2.829 2.829l.822.822.084.083z"/><path d="M3.35 5.47c-.18.16-.353.322-.518.487A13.134 13.134 0 0 0 1.172 8l.195.288c.335.48.83 1.12 1.465 1.755C4.121 11.332 5.881 12.5 8 12.5c.716 0 1.39-.133 2.02-.36l.77.772A7.029 7.029 0 0 1 8 13.5C3 13.5 0 8 0 8s.939-1.721 2.641-3.238l.708.709zm10.296 6.884-12-12 .708-.708 12 12-.708.708z"/></svg></span></h2>
+            <div class="card-content"><div id="kpi-summary-container"></div></div>
+        </div>
+
+        <!-- Daily Tracking Table -->
+        <div class="card"><h2 class="card-header">5. Daily Actuals Tracking</h2>
+            <div id="daily-tracking-table-container">
+                <table id="daily-tracking-table">
+                    <thead id="daily-table-head"></thead>
+                    <tbody id="daily-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <footer class="actions no-print"><button id="resetBtn" class="btn btn-secondary">Reset</button><button id="downloadBtn" class="btn btn-primary">Download CSV</button><button id="pdfBtn" class="btn btn-primary">Download PDF</button></footer>
+    </div>
+    
+    <!-- Holiday Picker Modal HTML is generated by JS -->
+    <div id="holidayPickerModal" class="modal no-print"></div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        let kpis = [];
+        let dayCounts = {};
+        const D = {};
+        let pickerCurrentDate = new Date();
+        let selectedHolidays = new Set();
+        let holidayRangeStart = null; // For range selection
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        function initialize() { cacheDomElements(); setDefaultDates(); addEventListeners(); addKpi(true); updateAllCalculations(); }
+        function addKpi(isDefault = false) { kpis.push({ id: Date.now(), name: `KPI #${kpis.length + 1}`, targetMode: 'monthly', totalTarget: 10000, blk1Percent: 33, blk2Percent: 30, blk1EndDate: '', blk2EndDate: '' }); rebuildUiForKpis(); if (!isDefault) updateAllCalculations(); }
+        function removeKpi(kpiId) { kpis = kpis.filter(k => k.id !== kpiId); rebuildUiForKpis(); updateAllCalculations(); }
+        function rebuildUiForKpis() { buildKpiConfigUI(); buildKpiSummaryUI(); buildDailyTableUI(); }
+
+        function buildKpiConfigUI() {
+            D.kpiConfigContainer.innerHTML = kpis.map(kpi => `
+                <div class="kpi-config-row" data-kpi-id="${kpi.id}" data-mode="${kpi.targetMode}">
+                    <div class="kpi-config-header"><input type="text" class="kpi-name-input" value="${kpi.name}"><button class="remove-kpi-btn" title="Remove KPI">×</button></div>
+                    <div class="target-mode-selector"><label><input type="radio" name="targetMode-${kpi.id}" value="monthly" ${kpi.targetMode==='monthly'?'checked':''}> Monthly</label><label><input type="radio" name="targetMode-${kpi.id}" value="blockwise" ${kpi.targetMode==='blockwise'?'checked':''}> Block Wise</label></div><hr>
+                    <div class="form-group monthly-inputs"><label>Total Target</label><input type="number" class="monthly-target-input" value="${kpi.totalTarget}"></div>
+                    <div class="blockwise-inputs">
+                        <div class="form-group"><label>Total Target</label><input type="number" class="bw-total-target-input" value="${kpi.totalTarget}"></div>
+                        <div class="bw-grid"><div class="form-group"><label>Block 1 End Date</label><input type="date" class="bw-blk1-end-date" value="${kpi.blk1EndDate}"></div><div class="form-group"><label>Block 2 End Date</label><input type="date" class="bw-blk2-end-date" value="${kpi.blk2EndDate}"></div></div>
+                        <div class="bw-inputs-grid"><div class="form-group"><label>BLK-1 %</label><input type="number" class="bw-blk1-percent" value="${kpi.blk1Percent}"></div><div class="form-group"><label>BLK-2 %</label><input type="number" class="bw-blk2-percent" value="${kpi.blk2Percent}"></div><div class="form-group"><label>BLK-3 %</label><div class="bw-blk3-display"></div></div></div>
+                    </div>
+                </div>`).join('');
+        }
+
+        function buildKpiSummaryUI() {
+            D.kpiSummaryContainer.innerHTML = kpis.map(kpi => `
+                <div class="card kpi-summary-card" id="kpi-summary-${kpi.id}">
+                    <h3 class="card-header">${kpi.name}</h3>
+                    <table class="kpi-table"><tbody>
+                        <tr><td class="label">Total Target</td><td class="value kpi-val-target">0</td></tr>
+                        <tr><td class="label">Total Actual</td><td class="value kpi-val-actual">0</td></tr>
+                        <tr><td class="label">Achievement %</td><td class="value kpi-val-achieve">0%</td></tr>
+                        <tr><td class="label">Present ADS</td><td class="value kpi-val-present-ads">0.00</td></tr>
+                        <tr><td class="label">Required ADS</td><td class="value kpi-val-required-ads required-ads">0.00</td></tr>
+                    </tbody></table>
+                    <div class="collapsible-section" style="display: ${kpi.targetMode==='blockwise'?'block':'none'}">
+                        <h4 class="collapsible-header">Target Blocks</h4><div class="collapsible-content"><table class="kpi-table"><tbody>
+                        <tr><td class="label kpi-label-blk1">BLK-1</td><td class="value block-value"><span class="actual kpi-val-blk1-actual">0</span> / <span class="kpi-val-blk1-target">0</span><span class="ach-percent"> / 0%</span></td></tr>
+                        <tr><td class="label kpi-label-blk2">BLK-2</td><td class="value block-value"><span class="actual kpi-val-blk2-actual">0</span> / <span class="kpi-val-blk2-target">0</span><span class="ach-percent"> / 0%</span></td></tr>
+                        <tr><td class="label kpi-label-blk3">BLK-3</td><td class="value block-value"><span class="actual kpi-val-blk3-actual">0</span> / <span class="kpi-val-blk3-target">0</span><span class="ach-percent"> / 0%</span></td></tr>
+                    </tbody></table></div></div></div>`).join('');
+        }
+        
+        function buildDailyTableUI() {
+            const kpiHeaders = kpis.map(kpi => `<th>${kpi.name}</th>`).join('');
+            D.dailyTableHead.innerHTML = `<tr><th>Date</th><th>Day</th><th>Status</th>${kpiHeaders}</tr>`;
+            if (D.startDate.value && D.endDate.value) { generateDailyTableBody(new Date(D.startDate.value + 'T00:00:00'), new Date(D.endDate.value + 'T00:00:00')); }
+        }
+
+        // *** THIS FUNCTION IS UPDATED TO BE RESPONSIVE ***
+        function generateDailyTableBody(s, e) {
+            D.dailyTableBody.innerHTML = ''; 
+            const w = getWeekendArray(), h = parseHolidays(), t = formatDate(new Date());
+            let c = new Date(s.getTime());
+            
+            while (c <= e) {
+                const dayOfWeek = c.getDay();
+                const dateStr = formatDate(c);
+                let status = 'Working';
+                let rowClass = '';
+                if(w.includes(dayOfWeek)){ status='Weekend'; rowClass='weekend-row'; }
+                else if(h.includes(dateStr)){ status='Holiday'; rowClass='holiday-row'; }
+                if(dateStr === t) { rowClass += ' today-row'; }
+
+                // HTML for the vertical list of KPIs in the mobile card view
+                const kpiInputsMobileHTML = kpis.map(k => `
+                    <div class="kpi-entry">
+                        <label for="mobile-kpi-${k.id}-${dateStr}">${k.name}</label>
+                        <input type="number" class="actual-input mobile-input" id="mobile-kpi-${k.id}-${dateStr}" data-date="${dateStr}" data-kpi-id="${k.id}" min="0" placeholder="0">
+                    </div>`).join('');
+                
+                // HTML for the table cells in the desktop view
+                const kpiInputsDesktopHTML = kpis.map(k => `
+                    <div class="kpi-entry">
+                        <input type="number" class="actual-input desktop-input" data-date="${dateStr}" data-kpi-id="${k.id}" min="0" placeholder="0">
+                    </div>`).join('');
+
+                const rowHTML = `
+                    <div class="daily-entry ${rowClass}" data-date-entry="${dateStr}">
+                        <!-- These are for DESKTOP table view -->
+                        <div class="data-cell">${dateStr}</div>
+                        <div class="data-cell">${dayNames[dayOfWeek]}</div>
+                        <div class="data-cell">${status}</div>
+                        ${kpiInputsDesktopHTML}
+                        
+                        <!-- These are for MOBILE card view -->
+                        <div class="daily-entry-header">
+                            <span class="date-info">${dateStr} (${dayNames[dayOfWeek]})</span>
+                            <span class="status-badge status-${status}">${status}</span>
+                        </div>
+                        <div class="daily-entry-body">${kpiInputsMobileHTML}</div>
+                    </div>`;
+                
+                D.dailyTableBody.insertAdjacentHTML('beforeend', rowHTML);
+                c.setDate(c.getDate() + 1);
+            }
+             // Sync inputs between mobile and desktop views within the same day-card
+            D.dailyTableBody.querySelectorAll('.daily-entry').forEach(entry => {
+                const mobileInputs = Array.from(entry.querySelectorAll('.mobile-input'));
+                const desktopInputs = Array.from(entry.querySelectorAll('.desktop-input'));
+
+                mobileInputs.forEach((input, index) => {
+                    input.addEventListener('input', (e) => {
+                        if (desktopInputs[index]) desktopInputs[index].value = e.target.value;
+                    });
+                });
+                desktopInputs.forEach((input, index) => {
+                    input.addEventListener('input', (e) => {
+                        if (mobileInputs[index]) mobileInputs[index].value = e.target.value;
+                    });
+                });
+            });
+        }
+
+        function updateAllCalculations() {
+            if (!D.startDate.value || !D.endDate.value) return;
+            const startDate = new Date(D.startDate.value + 'T00:00:00'), endDate = new Date(D.endDate.value + 'T00:00:00');
+            if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) return;
+            updateKpiStateFromDOM(); updateDayCounts(startDate, endDate);
+            kpis.forEach(kpi => {
+                const totalActual = calculateKpiTotalActual(kpi.id);
+                const blockActuals = (kpi.targetMode === 'blockwise') ? calculateBlockActuals(kpi) : { blk1: 0, blk2: 0, blk3: 0 };
+                const presentADS = dayCounts.presentWorking > 0 ? (totalActual / dayCounts.presentWorking) : 0;
+                const remainingWorking = dayCounts.totalWorking - dayCounts.presentWorking;
+                const requiredADS = remainingWorking > 0 ? ((kpi.totalTarget - totalActual) / remainingWorking) : 0;
+                updateKpiSummaryDOM(kpi, totalActual, blockActuals, presentADS, requiredADS);
+            });
+        }
+        
+        function updateKpiStateFromDOM() {
+            const periodStart=D.startDate.value?new Date(D.startDate.value+'T00:00:00'):null, periodEnd=D.endDate.value?new Date(D.endDate.value+'T00:00:00'):null;
+            kpis.forEach(kpi=>{
+                const configRow = D.kpiConfigContainer.querySelector(`[data-kpi-id="${kpi.id}"]`); if(!configRow)return;
+                const newName = configRow.querySelector('.kpi-name-input').value || `KPI #${kpi.id}`;
+                if (kpi.name !== newName) { kpi.name = newName; rebuildUiForKpis(); } // Rebuild all if name changes
+                kpi.targetMode = configRow.querySelector('input[type="radio"]:checked').value;
+                configRow.dataset.mode = kpi.targetMode; // Update data-attribute for CSS
+                if(kpi.targetMode==='monthly'){kpi.totalTarget=parseFloat(configRow.querySelector('.monthly-target-input').value)||0}
+                else{const blk1DateInput=configRow.querySelector('.bw-blk1-end-date'),blk2DateInput=configRow.querySelector('.bw-blk2-end-date');kpi.totalTarget=parseFloat(configRow.querySelector('.bw-total-target-input').value)||0;kpi.blk1EndDate=blk1DateInput.value;kpi.blk2EndDate=blk2DateInput.value;kpi.blk1Percent=parseFloat(configRow.querySelector('.bw-blk1-percent').value)||0;kpi.blk2Percent=parseFloat(configRow.querySelector('.bw-blk2-percent').value)||0;configRow.querySelector('.bw-blk3-display').textContent=`${100-kpi.blk1Percent-kpi.blk2Percent}%`;const blk1End=kpi.blk1EndDate?new Date(kpi.blk1EndDate+'T00:00:00'):null,blk2End=kpi.blk2EndDate?new Date(kpi.blk2EndDate+'T00:00:00'):null;blk1DateInput.classList.toggle('error',!blk1End||!periodStart||!periodEnd||blk1End<periodStart||blk1End>periodEnd);blk2DateInput.classList.toggle('error',!blk2End||!blk1End||blk2End<=blk1End||blk2End>periodEnd)}})
+        }
+        
+        function calculateBlockActuals(kpi) { const bA={blk1:0,blk2:0,blk3:0};const b1E=kpi.blk1EndDate?new Date(kpi.blk1EndDate+"T00:00:00"):null,b2E=kpi.blk2EndDate?new Date(kpi.blk2EndDate+"T00:00:00"):null;if(!b1E||!b2E||b1E>=b2E)return bA;D.dailyTableBody.querySelectorAll(`.actual-input[data-kpi-id="${kpi.id}"]`).forEach(i=>{const d=i.dataset.date,v=parseFloat(i.value)||0;if(!d||v===0)return;const c=new Date(d+"T00:00:00");if(c<=b1E)bA.blk1+=v;else if(c<=b2E)bA.blk2+=v;else bA.blk3+=v});return bA}
+        function calculateKpiTotalActual(kpiId) { let t=0; new Set(Array.from(D.dailyTableBody.querySelectorAll(`.actual-input[data-kpi-id="${kpiId}"]`)).map(i => i.value)).forEach(val => { t += parseFloat(val) || 0; }); return t; }
+        function updateDayCounts(s,e) { dayCounts=analyzeDateRange(s,e,getWeekendArray(),parseHolidays(),hasDataForToday());D.totalWorkingDays.textContent=dayCounts.totalWorking;D.presentWorkingDays.textContent=dayCounts.presentWorking;D.remainingWorkingDays.textContent=dayCounts.totalWorking-dayCounts.presentWorking;D.totalWeekends.textContent=dayCounts.weekendCount;D.totalHolidays.textContent=dayCounts.holidayCount }
+        function hasDataForToday() { const t=formatDate(new Date()),i=D.dailyTableBody.querySelectorAll(`.actual-input[data-date="${t}"]`);for(const n of i)if(parseFloat(n.value)>0)return!0;return!1 }
+        function analyzeDateRange(s,e,w,h,d) { let c={totalWorking:0,presentWorking:0,weekendCount:0,holidayCount:0};const t=new Date();t.setHours(0,0,0,0);let n=new Date(s.getTime());while(n<=e){const r=n.getDay(),o=formatDate(n);if(w.includes(r))c.weekendCount++;else if(h.includes(o))c.holidayCount++;else{c.totalWorking++;const a=n<t,l=n.getTime()===t.getTime()&&d;if(a||l)c.presentWorking++}n.setDate(n.getDate()+1)}return c }
+        
+        function updateKpiSummaryDOM(kpi, totalActual, blockActuals, presentADS, requiredADS) {
+            const s=document.getElementById(`kpi-summary-${kpi.id}`);if(!s)return;s.querySelector('.card-header').textContent=kpi.name;s.querySelector('.kpi-val-target').textContent=kpi.totalTarget.toLocaleString();s.querySelector('.kpi-val-actual').textContent=totalActual.toLocaleString();s.querySelector('.kpi-val-achieve').textContent=`${(kpi.totalTarget>0?(totalActual/kpi.totalTarget)*100:0).toFixed(1)}%`;s.querySelector('.kpi-val-present-ads').textContent=presentADS.toFixed(2);s.querySelector('.kpi-val-required-ads').textContent=requiredADS.toFixed(2);
+            const c=s.querySelector('.collapsible-section');c.style.display=kpi.targetMode==='blockwise'?'block':'none';
+            if(kpi.targetMode==='blockwise'){
+                const b3p=100-kpi.blk1Percent-kpi.blk2Percent;
+                const b1t=(kpi.totalTarget*kpi.blk1Percent/100),b2t=(kpi.totalTarget*kpi.blk2Percent/100),b3t=(kpi.totalTarget*b3p/100);
+                const b1a=blockActuals.blk1,b2a=blockActuals.blk2,b3a=blockActuals.blk3;
+                s.querySelector('.kpi-label-blk1').textContent=`BLK-1 (${kpi.blk1Percent}%)`;s.querySelector('.kpi-label-blk2').textContent=`BLK-2 (${kpi.blk2Percent}%)`;s.querySelector('.kpi-label-blk3').textContent=`BLK-3 (${b3p}%)`;
+                s.querySelector('.kpi-val-blk1-actual').textContent=b1a.toLocaleString();s.querySelector('.kpi-val-blk2-actual').textContent=b2a.toLocaleString();s.querySelector('.kpi-val-blk3-actual').textContent=b3a.toLocaleString();
+                s.querySelector('.kpi-val-blk1-target').textContent=b1t.toLocaleString(void 0,{maximumFractionDigits:0});s.querySelector('.kpi-val-blk2-target').textContent=b2t.toLocaleString(void 0,{maximumFractionDigits:0});s.querySelector('.kpi-val-blk3-target').textContent=b3t.toLocaleString(void 0,{maximumFractionDigits:0});
+                s.querySelector('.kpi-label-blk1 + .block-value .ach-percent').textContent=` / ${(b1t>0?(b1a/b1t)*100:0).toFixed(0)}%`;
+                s.querySelector('.kpi-label-blk2 + .block-value .ach-percent').textContent=` / ${(b2t>0?(b2a/b2t)*100:0).toFixed(0)}%`;
+                s.querySelector('.kpi-label-blk3 + .block-value .ach-percent').textContent=` / ${(b3t>0?(b3a/b3t)*100:0).toFixed(0)}%`;
+            }
+        }
+        function addEventListeners() { D.kpiConfigContainer.addEventListener('input',e=>{if(e.target.matches('.kpi-name-input, .monthly-target-input, .bw-total-target-input, .bw-blk1-percent, .bw-blk2-percent, .bw-blk1-end-date, .bw-blk2-end-date'))updateAllCalculations()});D.kpiConfigContainer.addEventListener('change',e=>{if(e.target.matches('input[type="radio"]')){updateAllCalculations()}});D.kpiConfigContainer.addEventListener('click',e=>{if(e.target.matches('.remove-kpi-btn'))removeKpi(parseInt(e.target.closest('.kpi-config-row').dataset.kpiId))});D.dailyTableBody.addEventListener('input',e=>{if(e.target.matches('.actual-input'))updateAllCalculations()});document.querySelectorAll('.is-collapsible').forEach(h=>{h.addEventListener('click',e=>{const c=e.currentTarget.closest('.card');c.classList.toggle('is-collapsed')})});document.querySelectorAll('.config-input').forEach(i=>i.addEventListener('change',()=>{buildDailyTableUI();updateAllCalculations()}));D.addKpiBtn.addEventListener('click',()=>addKpi());D.resetBtn.addEventListener('click',()=>location.reload());D.downloadBtn.addEventListener('click',downloadCSV);D.pdfBtn.addEventListener('click',downloadPDF);D.openHolidayPickerBtn.addEventListener('click',openHolidayPicker);D.holidayPickerModal.addEventListener('click',e=>{if(e.target===D.holidayPickerModal)closeHolidayPicker()}); }
+        
+        // --- HOLIDAY PICKER ---
+        function openHolidayPicker() {
+            D.holidayPickerModal.innerHTML = `<div class="modal-content"><div class="calendar-header"><button id="prevMonthBtn" class="btn btn-secondary"><</button><span id="holidayMonthYear"></span><button id="nextMonthBtn" class="btn btn-secondary">></button></div><div class="calendar-grid" id="calendarDayHeaders"></div><div class="calendar-grid" id="calendarDatesGrid"></div><div class="actions"><button id="clearHolidaysBtn" class="btn btn-secondary">Clear</button><button id="doneHolidaySelectionBtn" class="btn btn-primary">Done</button></div></div>`;
+            const prevBtn=document.getElementById('prevMonthBtn'),nextBtn=document.getElementById('nextMonthBtn'),doneBtn=document.getElementById('doneHolidaySelectionBtn'),clearBtn=document.getElementById('clearHolidaysBtn'),datesGrid=document.getElementById('calendarDatesGrid');
+            doneBtn.addEventListener('click', closeHolidayPicker);
+            clearBtn.addEventListener('click', ()=>{ holidayRangeStart=null; selectedHolidays.clear(); renderHolidayCalendar(); });
+            prevBtn.addEventListener('click', () => { pickerCurrentDate.setMonth(pickerCurrentDate.getMonth() - 1); renderHolidayCalendar(); });
+            nextBtn.addEventListener('click', () => { pickerCurrentDate.setMonth(pickerCurrentDate.getMonth() + 1); renderHolidayCalendar(); });
+            datesGrid.addEventListener('click', handleDateClick);
+            selectedHolidays = new Set(parseHolidays()); holidayRangeStart = null;
+            pickerCurrentDate = D.startDate.value ? new Date(D.startDate.value + 'T00:00:00') : new Date();
+            renderHolidayCalendar(); setupCalendarDayHeaders(); D.holidayPickerModal.style.display = 'flex';
+        }
+        function closeHolidayPicker() { D.holidays.value = Array.from(selectedHolidays).sort().join(', '); D.holidayPickerModal.style.display = 'none'; buildDailyTableUI(); updateAllCalculations(); }
+        function renderHolidayCalendar() { const y=pickerCurrentDate.getFullYear(),m=pickerCurrentDate.getMonth(),monthYear=document.getElementById('holidayMonthYear'),datesGrid=document.getElementById('calendarDatesGrid');monthYear.textContent=`${pickerCurrentDate.toLocaleString('default',{month:'long'})} ${y}`;datesGrid.innerHTML='';const f=new Date(y,m,1),d=new Date(y,m+1,0).getDate(),s=f.getDay();for(let i=0;i<s;i++)datesGrid.appendChild(document.createElement('div'));for(let i=1;i<=d;i++){const c=document.createElement('div'),a=new Date(y,m,i),t=formatDate(a);c.textContent=i;c.classList.add('date-cell');c.dataset.date=t;if(selectedHolidays.has(t))c.classList.add('selected');if(holidayRangeStart===t)c.classList.add('range-start');datesGrid.appendChild(c)}}
+        function handleDateClick(e){const t=e.target.closest('.date-cell');if(!t)return;const d=t.dataset.date;if(e.shiftKey && holidayRangeStart){const s=new Date(holidayRangeStart+'T00:00:00'),e=new Date(d+'T00:00:00');let start=s<e?s:e,end=s>e?s:e;let current=new Date(start);while(current<=end){const dateStr=formatDate(current);if(!selectedHolidays.has(dateStr))selectedHolidays.add(dateStr);current.setDate(current.getDate()+1)}holidayRangeStart=null}else{holidayRangeStart=d;if(selectedHolidays.has(d)){selectedHolidays.delete(d)}else{selectedHolidays.add(d)}}renderHolidayCalendar()}
+        function setupCalendarDayHeaders() { const h = document.getElementById('calendarDayHeaders'); if(h.children.length > 0) return; h.innerHTML = ''; dayNames.forEach(day => { const c=document.createElement('div'); c.textContent=day; c.style.fontWeight = 'bold'; h.appendChild(c); }); }
+        
+        // --- UTILITIES ---
+        function downloadPDF() { alert("This will open the print dialog. Please select 'Save as PDF' as your printer or destination to create the PDF file."); window.print(); }
+        function downloadCSV() { const h=['Date','Day','Status',...kpis.map(k=>k.name)];const r=[];D.dailyTableBody.querySelectorAll('.daily-entry').forEach(t=>{const e=[],d=t.querySelector('.date-info').textContent.split(' ')[0],y=t.querySelector('.date-info').textContent.match(/\(([^)]+)\)/)[1],s=t.querySelector('.status-badge').textContent;e.push(d,y,s);kpis.forEach(k=>{const i=t.querySelector(`.actual-input[data-kpi-id="${k.id}"]`);e.push(i?i.value||'0':'0')});r.push(e)});if(r.length===0){alert("No data to download.");return}const c=a=>a.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',');const b=[c(h),...r.map(c)].join('\n');const l=new Blob([b],{type:'text/csv;charset=utf-8;'});const k=document.createElement("a");if(k.download!==void 0){const u=URL.createObjectURL(l);k.setAttribute("href",u);k.setAttribute("download",`field_force_tracker_${D.startDate.value}.csv`);k.style.visibility='hidden';document.body.appendChild(k);k.click();document.body.removeChild(k)}}
+        function cacheDomElements(){Object.assign(D,{startDate:document.getElementById('startDate'),endDate:document.getElementById('endDate'),holidays:document.getElementById('holidays'),weekendCheckboxes:document.querySelectorAll('.weekend-day'),totalWorkingDays:document.getElementById('totalWorkingDays'),presentWorkingDays:document.getElementById('presentWorkingDays'),remainingWorkingDays:document.getElementById('remainingWorkingDays'),totalWeekends:document.getElementById('totalWeekends'),totalHolidays:document.getElementById('totalHolidays'),kpiConfigContainer:document.getElementById('kpi-config-container'),addKpiBtn:document.getElementById('addKpiBtn'),kpiSummaryContainer:document.getElementById('kpi-summary-container'),dailyTableHead:document.getElementById('daily-table-head'),dailyTableBody:document.getElementById('daily-table-body'),resetBtn:document.getElementById('resetBtn'),downloadBtn:document.getElementById('downloadBtn'),pdfBtn:document.getElementById('pdfBtn'),openHolidayPickerBtn:document.getElementById('openHolidayPickerBtn'),holidayPickerModal:document.getElementById('holidayPickerModal')});}
+        function setDefaultDates(){const t=new Date(),e=new Date(t.getFullYear(),t.getMonth(),1),d=new Date(t.getFullYear(),t.getMonth()+1,0);D.startDate.value=formatDate(e);D.endDate.value=formatDate(d);}
+        function getWeekendArray(){return Array.from(D.weekendCheckboxes).filter(c=>c.checked).map(c=>parseInt(c.value));}
+        function parseHolidays(){return D.holidays.value.split(',').map(d=>d.trim()).filter(d=>d.match(/^\d{4}-\d{2}-\d{2}$/));}
+        function formatDate(date) {if(!(date instanceof Date)||isNaN(date))return'';const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');return`${y}-${m}-${d}`}
+        
+        initialize();
+    });
+    </script>
+</body>
+</html>
